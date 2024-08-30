@@ -1,0 +1,187 @@
+clear all
+close all
+clc
+
+np=50; %number of individuals in the population
+maxit=1000; % maximum number of iterations
+ptoin=[0,0]; %initial point from where the traveler starts (can also be set randomly or as input)
+xi=ptoin(1);
+yi=ptoin(2);
+
+N=5; %number of cities to visit
+
+
+% Generate the positions of the cities randomly on a map with length b and height h
+b=10; h=10; 
+x=b*rand(1,N); 
+y=h*rand(1,N);
+
+nomi = cell(1, N);
+for i = 1:N
+    nomi{i} = num2str(i);
+end
+
+%creation of matrix A (given by the points representing the position of the cities on the map + the initial point from where the traveler starts)
+A=zeros(N+1,2);
+xx=[ptoin(1) , x];
+yy=[ptoin(2) , y];
+A(:,1)=xx';
+A(:,2)=yy';
+
+%--------------------------------------------------------------------------
+%CREATION OF THE POPULATION
+%randomly generate the individuals of the population without repetition
+%M->matrix of individuals (by rows)
+%rng default;
+M=creazione_popolazione(np,N);
+
+%--------------------------------------------------------------------------
+
+dminass=1000;
+Dmin=[]; %initialize the vector that contains the best distance of each generation
+Err=[]; %initialize the error vector for each generation
+
+%Repeat the steps of selection/crossover/mutation until the objective is reached
+it_senza_migl=0; %keeps track of the number of iterations without improvement
+maxit_senza_migl=70; %maximum iterations without improvement
+soglia=1e-4; %improvement threshold
+dmin=1000;
+l=1;
+while l<=maxit && it_senza_migl < maxit_senza_migl 
+
+[d,dmin,vbest]=calcola_distanza(M,A); 
+
+%--------------------------------------------------------------------------
+%SELECTION of individuals with the best fitness
+%each time select a group of k elements and choose the best one
+%select npi<np individuals without repetition
+
+npi=20; %number of individuals selected (all different)
+k=5;   %select the best in each random group of k individuals
+
+[dn,Mn]=selezione_migliori(npi,k,M,d); %dn vector of distances Mn matrix with selected individuals
+%--------------------------------------------------------------------------
+
+%--------------------------------------------------------------------------
+%RECOMBINATION-CROSSOVER
+%each time choose two random individuals from the selected ones and obtain two offspring individuals through crossover. Create enough to restore the initial population size
+
+F=zeros(np,N); %initialize the matrix of offspring individuals obtained through crossover
+F(1,:)=vbest; %always keep the best individual to ensure that the next generation is always better or equal to the previous one
+
+%the selected individuals to be recombined can be chosen multiple times
+i=2;
+pc=1; %crossover probability
+
+while i<=np
+    %j vector of two random indices from 1 to npi
+    vnpi=1:npi; %index vector from 1 to npi
+    ic=randperm(npi);
+    j=[vnpi(ic(1)) , vnpi(ic(2))];
+
+    %take the two individuals (determined by indices j) among the selected ones
+    v1=Mn(j(1),:); 
+    v2=Mn(j(2),:);
+
+if rand<pc %crossover
+    %new individuals obtained through crossover
+    [f1 , f2] = crossover(v1,v2);
+   
+   F(i,:)=f1; %insert the 1st offspring obtained from crossover into the next generation
+    i=i+1;
+    if i<=np
+    F(i,:)=f2; %insert the 2nd offspring obtained from crossover into the next generation
+    i=i+1;
+    end
+
+else %no crossover -> the selected individuals become part of the next generation
+    F(i,:)=v1; 
+    i=i+1;
+    if i<=np
+    F(i,:)=v2;
+    i=i+1;
+    end
+end
+    
+end
+%--------------------------------------------------------------------------
+
+%--------------------------------------------------------------------------
+%MUTATION
+%with a certain probability pm, swap two cities in the vector
+pm=0.2; %probability that a mutation occurs in each individual
+
+for i=2:np
+
+if rand<pm  
+    %mutation occurs
+    w=F(i,:); %take the vector to mutate
+    wm=mutazione2(w); %mutated vector
+    F(i,:)=wm; %replace the mutated vector in the matrix of individuals 
+end
+
+end
+%--------------------------------------------------------------------------
+
+%find the best individual of all generations
+if dminass>dmin
+    dminass=dmin;
+    vbestass=vbest;
+end
+
+%Check if there are significant improvements
+if l>1
+if dmin<Dmin(l-1)-soglia 
+     %fitness improves significantly, reset the counter
+    it_senza_migl=0;
+else
+    it_senza_migl=it_senza_migl+1; 
+end
+end
+
+fprintf('%d° iteration: minimum distance = %f \n',l,dmin);
+%fprintf('The best individual is: '); disp(vbest);
+
+Dmin(l)=dmin; %vector of minimum distances for each iteration
+
+M=F; %the matrix M with the previous population is replaced by the matrix F which contains the next generation
+
+l=l+1;
+
+end
+
+%print the best result obtained
+fprintf('The best individual of all generations is:'); disp(vbestass);
+[minDmin , posDmin]=min_pos(Dmin);
+fprintf('The minimum distance traveled by the best individual is:'); disp(minDmin);
+fprintf('obtained at the %d° iteration \n',posDmin);
+
+%plot the distance trend
+figure;
+subplot(1,2,2);
+plot(1:(l-1),Dmin,'r');
+xlabel('iterations');
+ylabel('distance traveled');
+title('Distance at each iteration');
+
+%best path found by the algorithm
+xa=[xi x(vbestass)];
+ya=[yi y(vbestass)];
+
+for i = 1:numel(nomi)
+    text(x(i), y(i), nomi{i}, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom');
+end
+
+subplot(1,2,1);
+plot(x,y,'ok',xi,yi,'og',xa,ya,'b-');
+title('Solution obtained with genetic algorithm');
+xlim([-1, 11]); % Imposta i limiti dell'asse x da -1 a 11
+ylim([-1 11]); % Imposta i limiti dell'asse y, da -1 a 11
+
+assign names to the cities on the map
+for i = 1:numel(nomi)
+    text(x(i), y(i), nomi{i}, 'HorizontalAlignment', 'left', 'VerticalAlignment', 'bottom');
+end
+
+xlabel('x');
+ylabel('y');
